@@ -1,0 +1,5 @@
+tensorflow == 2.4
+tensorflow-probability == 0.12
+gym
+pybullet
+-e gym-duckietown
