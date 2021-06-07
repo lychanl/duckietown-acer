@@ -4,7 +4,7 @@ import models.cnn as cnn
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from tensorflow.keras import optimizers
+from tensorflow.keras import optimizers, initializers
 from tensorflow.python.keras import activations
 
 
@@ -14,7 +14,8 @@ class DataModel(tf.keras.Model):
         self.cnn_layers = cnn.build_cnn_network(
             filters=filters,
             kernels=kernels,
-            strides=strides
+            strides=strides,
+            initializer=initializers.glorot_uniform
         )
 
         for layer in self.cnn_layers:
@@ -22,11 +23,15 @@ class DataModel(tf.keras.Model):
                 layer.kernel_regularizer = tf.keras.regularizers.L1(l1)
 
         self.hidden_layers = [l for layer in layers for l in [
-            tf.keras.layers.Dense(layer, kernel_regularizer=tf.keras.regularizers.L1(l1)),
+            tf.keras.layers.Dense(
+                layer, kernel_regularizer=tf.keras.regularizers.L1(l1),
+                kernel_initializer=initializers.glorot_uniform),
             tf.keras.layers.ReLU()
         ]]
 
-        self.out = tf.keras.layers.Dense(2 + 3 + 2, kernel_regularizer=tf.keras.regularizers.L1(l1))
+        self.out = tf.keras.layers.Dense(
+            2 + 3 + 2, kernel_regularizer=tf.keras.regularizers.L1(l1),
+            kernel_initializer=initializers.glorot_uniform)
 
     def cnn_forward(self, x):
         out = x

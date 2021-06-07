@@ -1,7 +1,7 @@
 import gym
 from gym_duckietown.envs.multimap_env import MultiMapEnv
 import numpy as np
-from wrappers import RescaleObsToFloatWrapper, DirectionChangePenaltyWrapper
+
 
 def override_cnn(filters: list, kernels: list, strides: list):
     import models.cnn as cnn
@@ -20,6 +20,7 @@ def wrappers(
         no_grayscale: bool, obs_scale: int, center: bool, time_limit: int = None,
         reward_scale: int = None, eval: bool = False, dir_change_penalty: float = None
 ):
+    from wrappers import RescaleObsToFloatWrapper, DirectionChangePenaltyWrapper
     return [
         (gym.wrappers.ResizeObservation, {'shape': (480 // obs_scale, 640 // obs_scale)})
     ] + ([] if no_grayscale else [(gym.wrappers.GrayScaleObservation, {})]) + [
@@ -27,7 +28,7 @@ def wrappers(
     ] + ([] if eval else ([
         (gym.wrappers.TimeLimit, {'max_episode_steps': time_limit}),
         (gym.wrappers.TransformReward, {'f': lambda x: x / reward_scale})
-    ] + [] if dir_change_penalty else [
+    ] + [] if not dir_change_penalty else [
         (DirectionChangePenaltyWrapper, {'penalty': dir_change_penalty})
     ]))
 
@@ -39,7 +40,7 @@ def get_dir_vec(angle):
 
 
 def get_closest_heading(info, env):
-    env = env.unwrapped.env_list[env.unwrapped.cur_env_idx] if isinstance(MultiMapEnv, env) else env.unwrapped
+    env = env.unwrapped.env_list[env.unwrapped.cur_env_idx] if isinstance(env, MultiMapEnv) else env.unwrapped
 
     i, j = env.get_grid_coords(info['Simulator']['cur_pos'])
     tile = env._get_tile(i, j)

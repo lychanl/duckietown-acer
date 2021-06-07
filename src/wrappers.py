@@ -1,7 +1,6 @@
 import gym
 from gym.spaces import Box
 from gym_duckietown.envs.multimap_env import MultiMapEnv
-from copy import copy
 import numpy as np
 
 import tools
@@ -34,14 +33,24 @@ class DirectionChangePenaltyWrapper(gym.Wrapper):
             self.multimap = False
 
         self.penalty = penalty
+        self.previous_heading = None
+
+    def reset(self):
+        self.previous_heading = None
+        return super().reset()
 
     def step(self, action) -> tuple:
-        obs, reward, done, info = super().step(action)
-        
-        closest_heading = tools.get_closest_heading(info, self.env)
+        try:
+            obs, reward, done, info = super().step(action)
+            
+            closest_heading = tools.get_closest_heading(info, self.env)
 
-        if self.previous_heading is not None:
-            if np.dot(closest_heading, self.previous_heading) < 0:
-                reward -= self.penalty
+            if self.previous_heading is not None:
+                if np.dot(closest_heading, self.previous_heading) < 0:
+                    reward -= self.penalty
 
-        return obs, reward, done, info
+            return obs, reward, done, info
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            raise
