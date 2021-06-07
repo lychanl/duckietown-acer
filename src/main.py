@@ -24,6 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--center', action='store_true', default=False)
     parser.add_argument('--time_limit', type=int, default=1500)
     parser.add_argument('--reward_scale', type=int, default=1)
+    parser.add_argument('--dir_change_penalty', type=float, default=None)
 
     parser.add_argument('--memory_size', type=int, default=int(5e5))
     parser.add_argument('--c', type=int, default=1)
@@ -63,7 +64,8 @@ if __name__ == '__main__':
         'obs_scale': args.obs_scale,
         'center': args.center,
         'time_limit': args.time_limit,
-        'reward_scale': args.reward_scale
+        'reward_scale': args.reward_scale,
+        'dir_change_penalty': args.dir_change_penalty
     }
 
     logging.getLogger().setLevel(logging.INFO)

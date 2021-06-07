@@ -41,7 +41,7 @@ def get_objects_info(env, info):
     closest = np.argmin(np.array(filtered)[:,1])
 
     kind = 1 if filtered[closest][0] == 'duckie' else 2
-    return kind, *filtered[closest][1:]
+    return (kind, *filtered[closest][1:])
 
 def make_dataset(env_name: str, obs_scale: int, size: int):
     env = gym.make(env_name, full_transparency=True)

@@ -1,6 +1,10 @@
 import gym
 from gym.spaces import Box
+from gym_duckietown.envs.multimap_env import MultiMapEnv
 from copy import copy
+import numpy as np
+
+import tools
 
 
 class RescaleObsToFloatWrapper(gym.ObservationWrapper):
@@ -16,3 +20,28 @@ class RescaleObsToFloatWrapper(gym.ObservationWrapper):
 
     def observation(self, observation):
         return (observation - self.x0) * self.scale
+
+
+class DirectionChangePenaltyWrapper(gym.Wrapper):
+    def __init__(self, env: gym.Env, penalty: float) -> None:
+        super().__init__(env)
+        if isinstance(env.unwrapped, MultiMapEnv):
+            for env in env.unwrapped.env_list:
+                env.full_transparency = True
+                self.multimap = True
+        else:
+            env.unwrapped.full_transparency = True
+            self.multimap = False
+
+        self.penalty = penalty
+
+    def step(self, action) -> tuple:
+        obs, reward, done, info = super().step(action)
+        
+        closest_heading = tools.get_closest_heading(info, self.env)
+
+        if self.previous_heading is not None:
+            if np.dot(closest_heading, self.previous_heading) < 0:
+                reward -= self.penalty
+
+        return obs, reward, done, info

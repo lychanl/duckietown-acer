@@ -9,28 +9,7 @@ import os
 import time
 
 from agent import AGENTS
-
-
-def get_dir_vec(angle):
-    x = np.cos(angle)
-    z = -np.sin(angle)
-    return np.array([x, 0, z])
-
-
-def get_closest_heading(info, env):
-    i, j = env.unwrapped.get_grid_coords(info['Simulator']['cur_pos'])
-    tile = env.unwrapped._get_tile(i, j)
-    curves = tile['curves']
-    curve_headings = curves[:, -1, :] - curves[:, 0, :]
-
-    curve_headings = curve_headings / np.linalg.norm(curve_headings).reshape(1, -1)
-    dir_vec = get_dir_vec(info['Simulator']['cur_angle'])
-
-    dot_prods = np.dot(curve_headings, dir_vec)
-
-    # Closest curve = one with largest dotprod
-    closest = np.argmax(dot_prods)
-    return curve_headings[closest]
+import tools
 
 
 def get_dist_change(info):
@@ -78,7 +57,7 @@ def test(env, agent, episodes, save_path=None):
             obs, rew, done, info = env.step(action)
             env.render()
 
-            closest_heading = get_closest_heading(info, env)
+            closest_heading = tools.get_closest_heading(info, env)
 
             if previous_heading is not None:
                 if np.dot(closest_heading, previous_heading) < 0:
