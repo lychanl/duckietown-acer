@@ -45,7 +45,7 @@ class DirectionChangePenaltyWrapper(gym.Wrapper):
             
             closest_heading = tools.get_closest_heading(info, self.env)
 
-            if self.previous_heading is not None:
+            if self.previous_heading is not None and closest_heading is not None:
                 if np.dot(closest_heading, self.previous_heading) < 0:
                     reward -= self.penalty
 

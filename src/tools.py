@@ -44,6 +44,10 @@ def get_closest_heading(info, env):
 
     i, j = env.get_grid_coords(info['Simulator']['cur_pos'])
     tile = env._get_tile(i, j)
+    
+    if tile is None or not tile['drivable']:
+        return None
+
     curves = tile['curves']
     curve_headings = curves[:, -1, :] - curves[:, 0, :]
 
