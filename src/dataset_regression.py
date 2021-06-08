@@ -66,7 +66,7 @@ def loss(out, y, beta, eta=0):
     regr_loss = tf.reduce_sum(tf.square(out[:,:2] - y[:,:2]), axis=-1)
     obj_loss = log_loss(tf.cast(y[:,2] != 0, tf.float32), out[:,2])
     class_loss = log_loss(tf.cast(y[:,2] == 2, tf.float32), out[:,3])
-    obj_regr_loss = tf.reduce_sum(tf.square(out[:,4:] - y[:,3:]), axis=-1)
+    obj_regr_loss = tf.reduce_sum(tf.square(out[:,4:] - 1 / (1 + y[:,3:])), axis=-1)
 
     obj_weight = tf.where(y[:,2] == 0, 0, 1 / (1 + y[:,3]))
 
@@ -81,7 +81,7 @@ def stats(out, y):
     det = out[:,2] > 0.5
     class1 = (out[:,2] > 0.5) & (out[:,3] < 0.5)
     class2 = (out[:,2] > 0.5) & (out[:,3] > 0.5)
-    obj_regr_loss = np.square(out[:,4:] - y[:,3:]).sum(-1).mean()
+    obj_regr_loss = np.square(out[:,4] - 1 / (1 + y[:,3])).mean() + np.square(out[:,5] - y[:,4]).mean()
 
     det_acc = (det == (y[:,2] != 0)).mean()
     det_prec = ((det == 1) & (y[:,2] != 0)).sum() / (y[:,2] != 0).sum()
