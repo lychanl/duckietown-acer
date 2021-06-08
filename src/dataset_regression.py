@@ -191,6 +191,7 @@ if __name__ == '__main__':
     parser.add_argument('--train_part', type=float, default=0.9)
     parser.add_argument('--log_interval', type=int, default=int(2000))
 
+    parser.add_argument('--in_', type=str, default=None)
     parser.add_argument('--out', type=str, default='data_model')
 
     parser.add_argument('--X', type=str, default='MultiMap-v0_dataset_x_1M.npy')
@@ -205,9 +206,13 @@ if __name__ == '__main__':
         layers=args.layers,
         l1=args.l1
     )
-    
+
     X = np.load(args.X)
     y = np.load(args.Y)
+
+    if args.in_:
+        model(X[:1])  # initialize model
+        model.load_weights(f'{args.in_}/weights')
 
     print('training...')
 
