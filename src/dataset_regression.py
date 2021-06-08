@@ -66,7 +66,7 @@ def loss(out, y, beta, eta=0):
     regr_loss = tf.reduce_sum(tf.square(out[:,:2] - y[:,:2]), axis=-1)
     obj_loss = log_loss(tf.cast(y[:,2] != 0, tf.float32), out[:,2])
     class_loss = log_loss(tf.cast(y[:,2] == 2, tf.float32), out[:,3])
-    obj_regr_loss = tf.reduce_sum(tf.square(out[:,4:] - 1 / (1 + y[:,3:])), axis=-1)
+    obj_regr_loss = tf.square(out[:,4] - 1 / (1 + y[:,3])) + tf.square(out[:,5] - y[:,4])
 
     obj_weight = tf.where(y[:,2] == 0, 0, 1 / (1 + y[:,3]))
 
