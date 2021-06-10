@@ -1,4 +1,6 @@
 import argparse
+import json
+import os
 
 import models.cnn as cnn
 import numpy as np
@@ -6,6 +8,23 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import optimizers, initializers
 from tensorflow.python.keras import activations
+
+
+def load_or_build_data_model(
+        path: str,
+        params: dict = None,
+        input_shape: list = None,
+        l1: float = 0):
+    if path and os.path.exists(path + '/params.json'):
+        with open(path + '/params.json') as params_file:
+            params = json.load(params_file)
+    model = DataModel(**params, l1=l1)
+
+    if path:
+        model(np.zeros((1, *input_shape)))  # initialize model
+        model.load_weights(f'{args.in_}/weights')
+
+    return model
 
 
 class DataModel(tf.keras.Model):
@@ -120,6 +139,7 @@ def train(model, X, Y, lr, beta, steps, batch_size, train_part=0.8, log=100):
     optimizer = tf.keras.optimizers.Adam(lr)
 
     losses = 0
+    n = 0
     best_loss = np.inf
 
     for step in range(steps):
@@ -142,6 +162,7 @@ def train(model, X, Y, lr, beta, steps, batch_size, train_part=0.8, log=100):
 
         optimizer.apply_gradients(zip(grads, vars))
         losses += l.numpy()
+        n += 1
 
         if step % log == 0:
             eval_q, stats = eval_model(model, X, Y, beta, batch_size, train_part)
@@ -154,6 +175,7 @@ def train(model, X, Y, lr, beta, steps, batch_size, train_part=0.8, log=100):
             regr_loss, det_acc, det_prec, c1_acc, c1_prec, c2_acc, c2_prec, obj_regr_loss = stats
             print(f'Regr loss {regr_loss} det a {det_acc} p {det_prec} c1 a {c1_acc} p {c1_prec} c2 a {c2_acc} p {c2_prec} Obj regr {obj_regr_loss}')
             losses = 0
+            n = 0
 
         
     eval_q, stats = eval_model(model, X, Y, beta, batch_size, train_part)
@@ -162,7 +184,7 @@ def train(model, X, Y, lr, beta, steps, batch_size, train_part=0.8, log=100):
         best_step = step
         weights = [w.numpy() for w in model.weights]
 
-    print(f'Step {steps}: train {losses / log}, val {eval_q}')
+    print(f'Step {steps}: train {losses / n}, val {eval_q}')
     regr_loss, det_acc, det_prec, c1_acc, c1_prec, c2_acc, c2_prec, obj_regr_loss = stats
     print(f'Regr loss {regr_loss} det a {det_acc} p {det_prec} c1 a {c1_acc} p {c1_prec} c2 a {c2_acc} p {c2_prec} Obj regr {obj_regr_loss}')
     losses = 0
@@ -199,20 +221,17 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
 
-    model = DataModel(
-        filters=args.filters,
-        kernels=args.kernels,
-        strides=args.strides,
-        layers=args.layers,
-        l1=args.l1
-    )
+    params = {
+        'filters': args.filters,
+        'kernels': args.kernels,
+        'strides': args.strides,
+        'layers': args.layers,
+    }
 
     X = np.load(args.X)
     y = np.load(args.Y)
 
-    if args.in_:
-        model(X[:1])  # initialize model
-        model.load_weights(f'{args.in_}/weights')
+    model = load_or_build_data_model(args.in_, params, X.shape[1:], args.l1)
 
     print('training...')
 
@@ -227,3 +246,5 @@ if __name__ == '__main__':
             exit(0)
 
     model.save_weights(f'{args.out}/weights')
+    with open(f'{args.out}/params.json', 'w') as params_file:
+        json.dump(params, params_file)
