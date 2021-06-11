@@ -2,7 +2,10 @@ import argparse
 import json
 import os
 
-import models.cnn as cnn
+import gym
+from gym.spaces import Box
+
+from tftools import base_cnn_build_fun
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
@@ -15,6 +18,7 @@ def load_or_build_data_model(
         params: dict = None,
         input_shape: list = None,
         l1: float = 0):
+    print("Preparing data model")
     if path and os.path.exists(path + '/params.json'):
         with open(path + '/params.json') as params_file:
             params = json.load(params_file)
@@ -22,7 +26,7 @@ def load_or_build_data_model(
 
     if path:
         model(np.zeros((1, *input_shape)))  # initialize model
-        model.load_weights(f'{args.in_}/weights')
+        model.load_weights(f'{path}/weights')
 
     return model
 
@@ -30,7 +34,7 @@ def load_or_build_data_model(
 class DataModel(tf.keras.Model):
     def __init__(self, filters: list, kernels: list, strides: list, layers: list, *args, l1: float=0.01, **kwargs):
         super().__init__(*args, **kwargs)
-        self.cnn_layers = cnn.build_cnn_network(
+        self.cnn_layers = base_cnn_build_fun(
             filters=filters,
             kernels=kernels,
             strides=strides,
@@ -73,6 +77,43 @@ class DataModel(tf.keras.Model):
         obj_angle = out[:,5]
 
         return tf.stack([dist, angle, det, clss, obj_dist, obj_angle], axis=1)
+
+@tf.function(experimental_relax_shapes=True)
+def data_model_out_processor(out):
+    dist = out[:,0]
+    angle = out[:,1]
+    obj_det = tf.cast(out[:,2] > 0.5, tf.float32)
+    obj_class = tf.cast(out[:,3] > 0.5, tf.float32)
+    obj_dist = out[:,4] * obj_det
+    obj_angle = out[:,5] * obj_class
+
+    return tf.stack([dist, angle, obj_det, obj_class, obj_dist, obj_angle], axis=-1)
+
+
+class DataModelVecWrapper(gym.vector.vector_env.VectorEnvWrapper):
+    def __init__(self, env, model) -> None:
+        super().__init__(env)
+        self.model = model
+        self.observation_space = Box(-np.inf, np.inf, (env.num_envs, 6), dtype=np.float32)
+        self.single_observation_space = Box(-np.inf, np.inf, (6,), dtype=np.float32)
+
+    def step_wait(self, **kwargs):
+        obss, done, reward, info = super().step_wait(**kwargs)
+        return data_model_out_processor(self.model(obss)).numpy(), done, reward, info
+
+    def reset_wait(self, **kwargs):
+        obss = super().reset_wait(**kwargs)
+        return data_model_out_processor(self.model(obss)).numpy()
+
+
+class DataModelWrapper(gym.ObservationWrapper):
+    def __init__(self, env, model) -> None:
+        super().__init__(env)
+        self.observation_space = Box(-np.inf, np.inf, (6,), np.float32)
+        self.model = model
+    
+    def observation(self, observation):
+        return data_model_out_processor(self.model([observation])).numpy()[0]
 
 
 def log_loss(y, p):

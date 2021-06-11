@@ -4,6 +4,8 @@ import gym_duckietown
 
 
 if __name__ == '__main__':
+    import tftools  # prepare cnn override
+
     from agent import ActorAgent
     import argparse
     import gym
@@ -51,6 +53,8 @@ if __name__ == '__main__':
     parser.add_argument('--strides', type=int, nargs='+', default=[1, 4, 1, 2, 1])
     parser.add_argument('--layers', type=int, nargs='+', default=[256, 256])
 
+    parser.add_argument('--data_model_path', type=str, default=None)
+
     args = parser.parse_args()
 
     cnn_params = {
@@ -65,13 +69,16 @@ if __name__ == '__main__':
         'center': args.center,
         'time_limit': args.time_limit,
         'reward_scale': args.reward_scale,
-        'dir_change_penalty': args.dir_change_penalty
+        'dir_change_penalty': args.dir_change_penalty,
+        'data_model_path': args.data_model_path
     }
 
     logging.getLogger().setLevel(logging.INFO)
     experiment = Experiment(
         args.env,
         wrappers=tools.wrappers(**wrappers_params),
+        obs_scale=args.obs_scale,
+        no_grayscale=args.no_grayscale,
         algorithm=args.algo,
         asynchronous=args.asynchronous,
         algorithm_parameters={
@@ -87,6 +94,7 @@ if __name__ == '__main__':
             'actor_beta_penalty': args.actor_beta_penalty
         },
         cnn_params=cnn_params,
+        data_model_path=args.data_model_path,
         max_time_steps=args.max_time_steps,
         evaluate_time_steps_interval=args.evaluate_time_steps_interval,
         num_evaluation_runs=args.num_evaluation_runs,

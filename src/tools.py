@@ -3,34 +3,34 @@ from gym_duckietown.envs.multimap_env import MultiMapEnv
 import numpy as np
 
 
-def override_cnn(filters: list, kernels: list, strides: list):
-    import models.cnn as cnn
-
-    build = cnn.build_cnn_network
-    def build_cnn_network():
-        return build(
-            filters=filters,
-            kernels=kernels,
-            strides=strides
-        )
-    cnn.build_cnn_network = build_cnn_network
-
-
 def wrappers(
         no_grayscale: bool, obs_scale: int, center: bool, time_limit: int = None,
-        reward_scale: int = None, eval: bool = False, dir_change_penalty: float = None
+        reward_scale: int = None, eval: bool = False, dir_change_penalty: float = None,
+        data_model_path: str = None
 ):
     from wrappers import RescaleObsToFloatWrapper, DirectionChangePenaltyWrapper
-    return [
+    from dataset_regression import load_or_build_data_model, DataModelWrapper
+
+    wraps = [
         (gym.wrappers.ResizeObservation, {'shape': (480 // obs_scale, 640 // obs_scale)})
-    ] + ([] if no_grayscale else [(gym.wrappers.GrayScaleObservation, {})]) + [
-        (RescaleObsToFloatWrapper, {'scale': 1/128, 'x0': 128} if center else {'scale': 1/256})
-    ] + ([] if eval else ([
-        (gym.wrappers.TimeLimit, {'max_episode_steps': time_limit}),
-        (gym.wrappers.TransformReward, {'f': lambda x: x / reward_scale})
-    ] + [] if not dir_change_penalty else [
-        (DirectionChangePenaltyWrapper, {'penalty': dir_change_penalty})
-    ]))
+    ] 
+    if not no_grayscale:
+        wraps.append((gym.wrappers.GrayScaleObservation, {}))
+
+    wraps.append((RescaleObsToFloatWrapper, {'scale': 1/128, 'x0': 128} if center else {'scale': 1/256}))
+
+    if not eval:
+        wraps.append((gym.wrappers.TimeLimit, {'max_episode_steps': time_limit}))
+        wraps.append((gym.wrappers.TransformReward, {'f': lambda x: x / reward_scale}))
+        if dir_change_penalty:
+            wraps.append((DirectionChangePenaltyWrapper, {'penalty': dir_change_penalty}))
+    elif data_model_path:
+        data_model = load_or_build_data_model(
+            data_model_path, input_shape=(480 // obs_scale, 640 // obs_scale, 3 if no_grayscale else 1)
+        )
+        wraps.append((DataModelWrapper, {'model': data_model}))
+
+    return wraps
 
 
 def get_dir_vec(angle):
