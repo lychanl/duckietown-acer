@@ -5,7 +5,7 @@ import numpy as np
 
 def wrappers(
         no_grayscale: bool, obs_scale: int, center: bool, time_limit: int = None,
-        reward_scale: int = None, eval: bool = False, dir_change_penalty: float = None,
+        reward_scale: int = None, reward_clip: float = None, eval: bool = False, dir_change_penalty: float = None,
         data_model_path: str = None, data_info: bool = False,
 ):
     from wrappers import RescaleObsToFloatWrapper, DirectionChangePenaltyWrapper
@@ -21,7 +21,9 @@ def wrappers(
 
     if not eval:
         wraps.append((gym.wrappers.TimeLimit, {'max_episode_steps': time_limit}))
-        wraps.append((gym.wrappers.TransformReward, {'f': lambda x: x / reward_scale}))
+        wraps.append((
+            gym.wrappers.TransformReward,
+            {'f': lambda x: np.clip(x / reward_scale, -reward_clip, reward_clip)} if reward_clip else {'f': lambda x: x / reward_scale}))
         if dir_change_penalty:
             wraps.append((DirectionChangePenaltyWrapper, {'penalty': dir_change_penalty}))
         if data_info:
