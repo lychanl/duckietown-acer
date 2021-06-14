@@ -8,8 +8,8 @@ from dataset_regression import load_or_build_data_model, DataModelVecWrapper
 
 class Experiment:
     def __init__(
-            self, env_name: str, wrappers: list, obs_scale: int, no_grayscale: bool,
-             num_parallel_envs: int, asynchronous: bool,
+            self, env_name: str, wrappers: list, obs_scale: int, no_grayscale: bool, data_info: bool,
+            num_parallel_envs: int, asynchronous: bool,
             algorithm: str, algorithm_parameters: dict, cnn_params: list, data_model_path: str,
             max_time_steps: int, evaluate_time_steps_interval: int, num_evaluation_runs: int,
             log_tensorboard: bool, do_checkpoint: bool, log_dir: str):
@@ -20,7 +20,7 @@ class Experiment:
                 data_model_path, input_shape=(480 // obs_scale, 640 // obs_scale, 3 if no_grayscale else 1)
             )
 
-        runners._get_env = self.get_env_getter(wrappers, data_model)
+        runners._get_env = self.get_env_getter(wrappers, data_model, data_info)
         algorithm_parameters = dict(algorithm_parameters)
         algorithm_parameters['num_parallel_envs'] = num_parallel_envs
 
@@ -54,7 +54,7 @@ class Experiment:
     def run(self):
         self.runner.run()
 
-    def get_env_getter(self, wrappers, data_model):
+    def get_env_getter(self, wrappers, data_model, data_info):
         def get_env(env_id: str, num_parallel_envs: int, asynchronous: bool = True):
             def builder():
                 env = gym.make(env_id)
@@ -68,7 +68,7 @@ class Experiment:
                 return env
             builders = [builder for _ in range(num_parallel_envs)]
             env = gym.vector.AsyncVectorEnv(builders) if asynchronous else gym.vector.SyncVectorEnv(builders)
-            if data_model:
+            if data_model and not data_info:
                 env = DataModelVecWrapper(env, data_model)
             return env
         return get_env

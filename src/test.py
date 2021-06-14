@@ -12,8 +12,11 @@ from agent import AGENTS
 import tools
 
 
-def get_dist_change(info):
-    return info['Simulator'].get('lane_position', {'dot_dir': 0})['dot_dir'] * info['Simulator']['robot_speed']
+def get_dist_change(info, action):
+    dist = info['Simulator'].get('lane_position', {'dot_dir': 0})['dot_dir'] * info['Simulator']['robot_speed']
+    if action[0] < 0:
+        dist *= -1
+    return dist
 
 
 def test(env, agent, episodes, save_path=None):
@@ -71,7 +74,7 @@ def test(env, agent, episodes, save_path=None):
             if info['Simulator'].get('proximity_penalty') > 0:
                 steps_proximity += 1
 
-            dist += dist_dir * get_dist_change(info)
+            dist += dist_dir * get_dist_change(info, action)
 
             reward += rew
             step += 1
@@ -102,6 +105,8 @@ def test(env, agent, episodes, save_path=None):
 
 
 if __name__ == '__main__':
+    import tensorflow as tf
+    tf.config.experimental.set_memory_growth(tf.config.list_physical_devices('GPU')[0], True)
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--env', type=str, default='Duckietown-loop_empty-v0')

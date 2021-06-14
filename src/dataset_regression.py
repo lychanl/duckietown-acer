@@ -12,6 +12,8 @@ from tensorflow import keras
 from tensorflow.keras import optimizers, initializers
 from tensorflow.python.keras import activations
 
+from make_dataset import get_objects_info
+
 
 def load_or_build_data_model(
         path: str,
@@ -106,14 +108,69 @@ class DataModelVecWrapper(gym.vector.vector_env.VectorEnvWrapper):
         return data_model_out_processor(self.model(obss)).numpy()
 
 
-class DataModelWrapper(gym.ObservationWrapper):
+class DataInfoWrapper(gym.Wrapper):
+    def __init__(self, env) -> None:
+        super().__init__(env)
+        self.observation_space = Box(-np.inf, np.inf, (8,), np.float32)
+
+    def reset(self):
+        super().reset()
+        info = self.unwrapped.get_agent_info()
+
+        obj_info = get_objects_info(self.env, info)
+        obs = np.array([
+            info['Simulator']['lane_position']['dist'] if 'lane_position' in info['Simulator'] else 0,
+            info['Simulator']['lane_position']['angle_rad'] if 'lane_position' in info['Simulator'] else 0,
+            obj_info[0] != 0,
+            obj_info[0] == 2,
+            obj_info[1],
+            obj_info[2],
+            0, 0
+        ], dtype=np.float32)
+
+        return obs
+
+    def step(self, action):
+        _, reward, done, info = super().step(action)
+
+        obj_info = get_objects_info(self.env, info)
+        obs = np.array([
+            info['Simulator']['lane_position']['dist'] if 'lane_position' in info['Simulator'] else 0,
+            info['Simulator']['lane_position']['angle_rad'] if 'lane_position' in info['Simulator'] else 0,
+            obj_info[0] != 0,
+            obj_info[0] == 2,
+            obj_info[1],
+            obj_info[2],
+            *action,
+        ], dtype=np.float32)
+
+        return obs, reward, done, info
+
+class DataModelWrapper(gym.Wrapper):
     def __init__(self, env, model) -> None:
         super().__init__(env)
-        self.observation_space = Box(-np.inf, np.inf, (6,), np.float32)
+        self.observation_space = Box(-np.inf, np.inf, (8,), np.float32)
         self.model = model
-    
-    def observation(self, observation):
-        return data_model_out_processor(self.model([observation])).numpy()[0]
+
+    def reset(self):
+        obs = super().reset()
+
+        obs = np.array([
+            *data_model_out_processor(self.model([obs])).numpy()[0],
+            0, 0
+        ], dtype=np.float32)
+
+        return obs
+
+    def step(self, action):
+        obs, reward, done, info = super().step(action)
+
+        obs = np.array([
+            *data_model_out_processor(self.model([obs])).numpy()[0],
+            *action,
+        ], dtype=np.float32)
+
+        return obs, reward, done, info
 
 
 def log_loss(y, p):

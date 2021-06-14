@@ -6,10 +6,10 @@ import numpy as np
 def wrappers(
         no_grayscale: bool, obs_scale: int, center: bool, time_limit: int = None,
         reward_scale: int = None, eval: bool = False, dir_change_penalty: float = None,
-        data_model_path: str = None
+        data_model_path: str = None, data_info: bool = False,
 ):
     from wrappers import RescaleObsToFloatWrapper, DirectionChangePenaltyWrapper
-    from dataset_regression import load_or_build_data_model, DataModelWrapper
+    from dataset_regression import load_or_build_data_model, DataModelWrapper, DataInfoWrapper
 
     wraps = [
         (gym.wrappers.ResizeObservation, {'shape': (480 // obs_scale, 640 // obs_scale)})
@@ -24,6 +24,8 @@ def wrappers(
         wraps.append((gym.wrappers.TransformReward, {'f': lambda x: x / reward_scale}))
         if dir_change_penalty:
             wraps.append((DirectionChangePenaltyWrapper, {'penalty': dir_change_penalty}))
+        if data_info:
+            wraps.append((DataInfoWrapper, {}))
     elif data_model_path:
         data_model = load_or_build_data_model(
             data_model_path, input_shape=(480 // obs_scale, 640 // obs_scale, 3 if no_grayscale else 1)

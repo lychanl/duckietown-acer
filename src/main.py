@@ -54,6 +54,7 @@ if __name__ == '__main__':
     parser.add_argument('--layers', type=int, nargs='+', default=[256, 256])
 
     parser.add_argument('--data_model_path', type=str, default=None)
+    parser.add_argument('--data_info', action='store_true', default=False)
 
     args = parser.parse_args()
 
@@ -63,6 +64,9 @@ if __name__ == '__main__':
         'strides': args.layers
     }
 
+    if args.data_info:
+        assert args.data_model_path
+
     wrappers_params = {
         'no_grayscale': args.no_grayscale,
         'obs_scale': args.obs_scale,
@@ -70,7 +74,8 @@ if __name__ == '__main__':
         'time_limit': args.time_limit,
         'reward_scale': args.reward_scale,
         'dir_change_penalty': args.dir_change_penalty,
-        'data_model_path': args.data_model_path
+        'data_model_path': args.data_model_path,
+        'data_info': args.data_info
     }
 
     logging.getLogger().setLevel(logging.INFO)
@@ -79,6 +84,7 @@ if __name__ == '__main__':
         wrappers=tools.wrappers(**wrappers_params),
         obs_scale=args.obs_scale,
         no_grayscale=args.no_grayscale,
+        data_info=args.data_info,
         algorithm=args.algo,
         asynchronous=args.asynchronous,
         algorithm_parameters={
