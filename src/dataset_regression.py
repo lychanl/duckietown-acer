@@ -12,7 +12,7 @@ from tensorflow import keras
 from tensorflow.keras import optimizers, initializers
 from tensorflow.python.keras import activations
 
-from make_dataset import get_objects_info
+from make_dataset import get_drive_curve_info, get_objects_info
 
 
 def load_or_build_data_model(
@@ -73,23 +73,25 @@ class DataModel(tf.keras.Model):
         
         dist = out[:,0]
         angle = out[:,1]
-        det = tf.sigmoid(out[:,2])
-        clss = tf.sigmoid(out[:,3])
-        obj_dist = out[:,4]
-        obj_angle = out[:,5]
+        curve = tf.math.atan(out[:,2])
+        det = tf.sigmoid(out[:,3])
+        clss = tf.sigmoid(out[:,4])
+        obj_dist = out[:,5]
+        obj_angle = out[:,6]
 
-        return tf.stack([dist, angle, det, clss, obj_dist, obj_angle], axis=1)
+        return tf.stack([dist, angle, curve, det, clss, obj_dist, obj_angle], axis=1)
 
 @tf.function(experimental_relax_shapes=True)
 def data_model_out_processor(out):
     dist = out[:,0]
     angle = out[:,1]
-    obj_det = tf.cast(out[:,2] > 0.5, tf.float32)
-    obj_class = tf.cast(out[:,3] > 0.5, tf.float32)
-    obj_dist = out[:,4] * obj_det
-    obj_angle = out[:,5] * obj_class
+    curve = out[:,2]
+    obj_det = tf.cast(out[:,3] > 0.5, tf.float32)
+    obj_class = tf.cast(out[:,4] > 0.5, tf.float32)
+    obj_dist = out[:,5] * obj_det
+    obj_angle = out[:,6] * obj_class
 
-    return tf.stack([dist, angle, obj_det, obj_class, obj_dist, obj_angle], axis=-1)
+    return tf.stack([dist, angle, curve, obj_det, obj_class, obj_dist, obj_angle], axis=-1)
 
 
 class DataModelVecWrapper(gym.vector.vector_env.VectorEnvWrapper):
@@ -111,7 +113,7 @@ class DataModelVecWrapper(gym.vector.vector_env.VectorEnvWrapper):
 class DataInfoWrapper(gym.Wrapper):
     def __init__(self, env) -> None:
         super().__init__(env)
-        self.observation_space = Box(-np.inf, np.inf, (8,), np.float32)
+        self.observation_space = Box(-np.inf, np.inf, (7,), np.float32)
 
     def reset(self):
         super().reset()
@@ -121,11 +123,11 @@ class DataInfoWrapper(gym.Wrapper):
         obs = np.array([
             info['Simulator']['lane_position']['dist'] if 'lane_position' in info['Simulator'] else 0,
             info['Simulator']['lane_position']['angle_rad'] if 'lane_position' in info['Simulator'] else 0,
+            get_drive_curve_info(self.env),
             obj_info[0] != 0,
             obj_info[0] == 2,
             obj_info[1],
-            obj_info[2],
-            0, 0
+            obj_info[2]
         ], dtype=np.float32)
 
         return obs
@@ -137,11 +139,11 @@ class DataInfoWrapper(gym.Wrapper):
         obs = np.array([
             info['Simulator']['lane_position']['dist'] if 'lane_position' in info['Simulator'] else 0,
             info['Simulator']['lane_position']['angle_rad'] if 'lane_position' in info['Simulator'] else 0,
+            get_drive_curve_info(self.env),
             obj_info[0] != 0,
             obj_info[0] == 2,
             obj_info[1],
-            obj_info[2],
-            *action,
+            obj_info[2]
         ], dtype=np.float32)
 
         return obs, reward, done, info
@@ -149,26 +151,20 @@ class DataInfoWrapper(gym.Wrapper):
 class DataModelWrapper(gym.Wrapper):
     def __init__(self, env, model) -> None:
         super().__init__(env)
-        self.observation_space = Box(-np.inf, np.inf, (8,), np.float32)
+        self.observation_space = Box(-np.inf, np.inf, (7,), np.float32)
         self.model = model
 
     def reset(self):
         obs = super().reset()
 
-        obs = np.array([
-            *data_model_out_processor(self.model([obs])).numpy()[0],
-            0, 0
-        ], dtype=np.float32)
+        obs = data_model_out_processor(self.model([obs])).numpy()[0]
 
         return obs
 
     def step(self, action):
         obs, reward, done, info = super().step(action)
 
-        obs = np.array([
-            *data_model_out_processor(self.model([obs])).numpy()[0],
-            *action,
-        ], dtype=np.float32)
+        obs = data_model_out_processor(self.model([obs])).numpy()[0]
 
         return obs, reward, done, info
 
@@ -180,12 +176,12 @@ def log_loss(y, p):
 
 # @tf.function
 def loss(out, y, beta, eta=0):
-    regr_loss = tf.reduce_sum(tf.square(out[:,:2] - y[:,:2]), axis=-1)
-    obj_loss = log_loss(tf.cast(y[:,2] != 0, tf.float32), out[:,2])
-    class_loss = log_loss(tf.cast(y[:,2] == 2, tf.float32), out[:,3])
-    obj_regr_loss = tf.square(out[:,4] - 1 / (1 + y[:,3])) + tf.square(out[:,5] - y[:,4])
+    regr_loss = tf.reduce_sum(tf.square(out[:,:3] - y[:,:3]), axis=-1)
+    obj_loss = log_loss(tf.cast(y[:,3] != 0, tf.float32), out[:,3])
+    class_loss = log_loss(tf.cast(y[:,3] == 2, tf.float32), out[:,4])
+    obj_regr_loss = tf.square(out[:,5] - 1 / (1 + y[:,4])) + tf.square(out[:,6] - y[:,5])
 
-    obj_weight = tf.where(y[:,2] == 0, 0, 1 / (1 + y[:,3]))
+    obj_weight = tf.where(y[:,3] == 0, 0, 1 / (1 + y[:,4]))
 
     return tf.reduce_mean(regr_loss + obj_loss + beta * obj_weight * (class_loss + obj_regr_loss))
 
@@ -194,20 +190,20 @@ def stats(out, y):
     out = out.numpy()
     y = y.numpy()
 
-    regr_loss = np.square(out[:,:2] - y[:,:2]).sum(-1).mean()
-    det = out[:,2] > 0.5
-    class1 = (out[:,2] > 0.5) & (out[:,3] < 0.5)
-    class2 = (out[:,2] > 0.5) & (out[:,3] > 0.5)
-    obj_regr_loss = np.square(out[:,4] - 1 / (1 + y[:,3])).mean() + np.square(out[:,5] - y[:,4]).mean()
+    regr_loss = np.square(out[:,:3] - y[:,:3]).sum(-1).mean()
+    det = out[:,3] > 0.5
+    class1 = (out[:,3] > 0.5) & (out[:,4] < 0.5)
+    class2 = (out[:,3] > 0.5) & (out[:,4] > 0.5)
+    obj_regr_loss = np.square(out[:,5] - 1 / (1 + y[:,4])).mean() + np.square(out[:,6] - y[:,5]).mean()
 
-    det_acc = (det == (y[:,2] != 0)).mean()
-    det_prec = ((det == 1) & (y[:,2] != 0)).sum() / (y[:,2] != 0).sum()
+    det_acc = (det == (y[:,3] != 0)).mean()
+    det_prec = ((det == 1) & (y[:,3] != 0)).sum() / (y[:,3] != 0).sum()
 
-    c1_acc = ((class1 == (y[:,2] == 1)) * (y[:,2] != 0)).sum() / (y[:,2] != 0).sum()
-    c1_prec = ((class1 == 1) & (y[:,2] == 1)).sum() / (y[:,2] == 1).sum()
+    c1_acc = ((class1 == (y[:,3] == 1)) * (y[:,3] != 0)).sum() / (y[:,3] != 0).sum()
+    c1_prec = ((class1 == 1) & (y[:,3] == 1)).sum() / (y[:,3] == 1).sum()
 
-    c2_acc = ((class2 == (y[:,2] == 2)) * (y[:,2] != 0)).sum() / (y[:,2] != 0).sum()
-    c2_prec = ((class2 == 1) & (y[:,2] == 2)).sum() / (y[:,2] == 2).sum()
+    c2_acc = ((class2 == (y[:,3] == 2)) * (y[:,3] != 0)).sum() / (y[:,3] != 0).sum()
+    c2_prec = ((class2 == 1) & (y[:,3] == 2)).sum() / (y[:,3] == 2).sum()
 
     return regr_loss, det_acc, det_prec, c1_acc, c1_prec, c2_acc, c2_prec, obj_regr_loss
 
@@ -215,7 +211,7 @@ def eval_model(model, X, Y, beta, batch_size, train_part):
     tl = 0
     n = 0
     
-    s = np.zeros(8)
+    s = np.zeros(7)
 
     for i in range(int(X.shape[0] * train_part), X.shape[0], batch_size):
         x = X[i:(i+batch_size)] / 256

@@ -2,6 +2,7 @@ import argparse
 from ast import parse
 import gym
 import gym_duckietown
+from gym_duckietown import simulator, graphics
 import numpy as np
 
 
@@ -43,12 +44,33 @@ def get_objects_info(env, info):
     kind = 1 if filtered[closest][0] == 'duckie' else 2
     return (kind, *filtered[closest][1:])
 
+def get_drive_curve_info(env):
+    if hasattr(env.unwrapped, 'env_list'):
+        env = env.unwrapped.env_list[env.unwrapped.cur_env_idx]
+
+    i, j = env.get_grid_coords(env.cur_pos)
+    tile = env._get_tile(i, j)
+    if tile['drivable']:
+        curves = env._get_tile(i, j)['curves']
+        curve_headings = curves[:, -1, :] - curves[:, 0, :]
+        curve_headings = curve_headings / np.linalg.norm(curve_headings).reshape(1, -1)
+        dirVec = simulator.get_dir_vec(env.cur_angle)
+        dot_prods = np.dot(curve_headings, dirVec)
+        pts = curves[np.argmax(dot_prods)]
+
+        closest = graphics.bezier_closest(pts, env.cur_pos)
+        tangent = graphics.bezier_tangent(pts, closest)
+
+        return np.math.atan2(tangent[0], -tangent[2])
+    
+    return 0
+
 def make_dataset(env_name: str, obs_scale: int, size: int):
     env = gym.make(env_name, full_transparency=True)
     env = gym.wrappers.ResizeObservation(env, shape=(480 // obs_scale, 640 // obs_scale))
 
     x = np.zeros((size, *env.observation_space.shape), dtype=env.observation_space.dtype)
-    y = np.zeros((size, 2 + 3))
+    y = np.zeros((size, 3 + 3))
 
     for i in range(size):
         print(f"\r{i}/{size}", end='')
@@ -58,7 +80,8 @@ def make_dataset(env_name: str, obs_scale: int, size: int):
         x[i] = obs
         y[i, 0] = info['Simulator']['lane_position']['dist']
         y[i, 1] = info['Simulator']['lane_position']['angle_rad']
-        y[i, 2:] = get_objects_info(env, info)
+        y[i, 2] = get_drive_curve_info(env)
+        y[i, 3:] = get_objects_info(env, info)
 
     return x, y
 
