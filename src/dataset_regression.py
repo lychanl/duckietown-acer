@@ -211,7 +211,7 @@ def eval_model(model, X, Y, beta, batch_size, train_part):
     tl = 0
     n = 0
     
-    s = np.zeros(7)
+    s = np.zeros(8)
 
     for i in range(int(X.shape[0] * train_part), X.shape[0], batch_size):
         x = X[i:(i+batch_size)] / 256

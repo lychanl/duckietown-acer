@@ -60,8 +60,21 @@ def get_drive_curve_info(env):
 
         closest = graphics.bezier_closest(pts, env.cur_pos)
         tangent = graphics.bezier_tangent(pts, closest)
+        angle = np.math.atan2(tangent[0], -tangent[2])
+        d = min(1 - closest, 0.1)
+        if d < 0.001:
+            return 0
+        nxt = closest + d
+        nxt_tangent = graphics.bezier_tangent(pts, nxt)
+        nxt_angle = np.math.atan2(nxt_tangent[0], -nxt_tangent[2])
 
-        return np.math.atan2(tangent[0], -tangent[2])
+        diff = nxt_angle - angle
+        if diff < -np.pi:
+            diff += 2* np.pi
+        elif diff > np.pi:
+            diff -= 2 * np.pi
+        
+        return diff / d
     
     return 0
 
