@@ -54,3 +54,14 @@ class DirectionChangePenaltyWrapper(gym.Wrapper):
             import traceback
             traceback.print_exc()
             raise
+
+
+class LimitActionWrapper(gym.ActionWrapper):
+    def __init__(self, env, limit) -> None:
+        super().__init__(env)
+        self.limit = limit
+        self.action_space.low = np.ones_like(self.action_space.low) * -limit
+        self.action_space.high = np.ones_like(self.action_space.high) * limit
+
+    def action(self, action):
+        return np.clip(action, -self.limit, self.limit)

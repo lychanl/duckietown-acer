@@ -4,16 +4,18 @@ import numpy as np
 
 
 def wrappers(
-        no_grayscale: bool, obs_scale: int, center: bool, time_limit: int = None,
+        no_grayscale: bool, obs_scale: int, center: bool, time_limit: int = None, action_limit: float = None,
         reward_scale: int = None, reward_clip: float = None, eval: bool = False, dir_change_penalty: float = None,
         data_model_path: str = None, data_info: bool = False,
 ):
-    from wrappers import RescaleObsToFloatWrapper, DirectionChangePenaltyWrapper
+    from wrappers import RescaleObsToFloatWrapper, DirectionChangePenaltyWrapper, LimitActionWrapper
     from dataset_regression import load_or_build_data_model, DataModelWrapper, DataInfoWrapper
 
     wraps = [
         (gym.wrappers.ResizeObservation, {'shape': (480 // obs_scale, 640 // obs_scale)})
     ] 
+    if action_limit:
+        wraps.append((LimitActionWrapper, {'limit': action_limit}))
     if not no_grayscale:
         wraps.append((gym.wrappers.GrayScaleObservation, {}))
 

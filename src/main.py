@@ -27,6 +27,7 @@ if __name__ == '__main__':
     parser.add_argument('--time_limit', type=int, default=1500)
     parser.add_argument('--reward_scale', type=int, default=1)
     parser.add_argument('--reward_clip', type=int, default=None)
+    parser.add_argument('--action_limit', type=float, default=None)
     parser.add_argument('--dir_change_penalty', type=float, default=None)
 
     parser.add_argument('--memory_size', type=int, default=int(5e5))
@@ -77,7 +78,8 @@ if __name__ == '__main__':
         'dir_change_penalty': args.dir_change_penalty,
         'data_model_path': args.data_model_path,
         'data_info': args.data_info,
-        'reward_clip': args.reward_clip
+        'reward_clip': args.reward_clip,
+        'action_limit': args.action_limit
     }
 
     logging.getLogger().setLevel(logging.INFO)

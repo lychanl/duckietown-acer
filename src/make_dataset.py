@@ -47,6 +47,7 @@ def get_objects_info(env, info):
 def get_drive_curve_info(env):
     if hasattr(env.unwrapped, 'env_list'):
         env = env.unwrapped.env_list[env.unwrapped.cur_env_idx]
+    env = env.unwrapped
 
     i, j = env.get_grid_coords(env.cur_pos)
     tile = env._get_tile(i, j)
